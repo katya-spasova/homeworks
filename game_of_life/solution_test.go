@@ -351,7 +351,7 @@ func TestBadQuery(t *testing.T) {
 
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusBadRequest {
+	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("Expected status 400 but found %d", resp.StatusCode)
 	}
 }

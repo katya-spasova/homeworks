@@ -44,7 +44,6 @@ func NewGameOfLifeHandler(startCells [][2]int64) *GameOfLifeHandler {
 	mux.HandleFunc("/cells/", gameOfLife.addCells)
 	mux.HandleFunc("/generation/evolve/", gameOfLife.evolve)
 	mux.HandleFunc("/reset/", gameOfLife.reset)
-	mux.HandleFunc("/", wrongQuery)
 
 	gameOfLifeHandler := GameOfLifeHandler{mux: mux, gameOfLife: gameOfLife}
 
@@ -331,9 +330,4 @@ func (game *GameOfLife) reset(w http.ResponseWriter, r *http.Request) {
 	game.rwMutex.Unlock()
 
 	message(w, nil, http.StatusNoContent)
-}
-
-// Used to return status code 400 to wrong requests
-func wrongQuery(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "", http.StatusBadRequest)
 }
