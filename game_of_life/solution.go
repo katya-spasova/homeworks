@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
-	"time"
 )
 
 // GameOfLife - holds the state of the game
@@ -15,7 +14,7 @@ type GameOfLife struct {
 	generation int
 	board      map[int64](map[int64]bool)
 	rwMutex    sync.RWMutex
-	isEvolving bool
+	pushMutex  sync.Mutex
 }
 
 // GameOfLifeHandler - hold the game and multiplexer
@@ -33,7 +32,7 @@ func (h *GameOfLifeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func NewGameOfLifeHandler(startCells [][2]int64) *GameOfLifeHandler {
 	gameOfLife := GameOfLife{generation: 0,
 		board: make(map[int64]map[int64]bool), rwMutex: sync.RWMutex{},
-		isEvolving: false}
+		pushMutex: sync.Mutex{}}
 	for i := 0; i < len(startCells); i++ {
 		gameOfLife.addCell(startCells[i][0], startCells[i][1])
 	}
@@ -173,17 +172,13 @@ func (game *GameOfLife) addCells(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err1.Error(), http.StatusBadRequest)
 	}
 
+	game.pushMutex.Lock()
 	game.rwMutex.Lock()
-	//ugly :(
-	for game.isEvolving {
-		game.rwMutex.Unlock()
-		time.Sleep(1 * time.Millisecond)
-		game.rwMutex.Lock()
-	}
 	for _, p := range s {
 		game.addCell(p.X, p.Y)
 	}
 	game.rwMutex.Unlock()
+	game.pushMutex.Unlock()
 
 	message(w, nil, http.StatusCreated)
 }
@@ -195,16 +190,7 @@ func (game *GameOfLife) evolve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// has to lock here for a little while
-	game.rwMutex.Lock()
-	//ugly :(
-	for game.isEvolving {
-		game.rwMutex.Unlock()
-		time.Sleep(1 * time.Millisecond)
-		game.rwMutex.Lock()
-	}
-	game.isEvolving = true
-	game.rwMutex.Unlock()
-
+	game.pushMutex.Lock()
 	game.rwMutex.RLock()
 
 	newBoard := make(map[int64]map[int64]bool)
@@ -229,8 +215,8 @@ func (game *GameOfLife) evolve(w http.ResponseWriter, r *http.Request) {
 	game.rwMutex.Lock()
 	game.generation += 1
 	game.board = newBoard
-	game.isEvolving = false
 	game.rwMutex.Unlock()
+	game.pushMutex.Unlock()
 
 	message(w, nil, http.StatusNoContent)
 }
@@ -318,16 +304,12 @@ func (game *GameOfLife) reset(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 	}
+	game.pushMutex.Lock()
 	game.rwMutex.Lock()
-	//ugly :(
-	for game.isEvolving {
-		game.rwMutex.Unlock()
-		time.Sleep(1 * time.Millisecond)
-		game.rwMutex.Lock()
-	}
 	game.generation = 0
 	game.board = make(map[int64]map[int64]bool)
 	game.rwMutex.Unlock()
+	game.pushMutex.Unlock()
 
 	message(w, nil, http.StatusNoContent)
 }
